@@ -1,0 +1,13 @@
+audio-recorder-streamlit
+elevenlabs
+faiss-cpu
+langchain-community
+langchain-core
+langchain-openai
+numpy
+pyaudio
+pydub
+sentence-transformers
+speechrecognition
+streamlit
+wave
