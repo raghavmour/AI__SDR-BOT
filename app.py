@@ -57,7 +57,7 @@ def initialize_rag():
 
     # Initialize LLM
     llm = ChatOpenAI(
-        openai_api_key=os.getenv("GROQ_API_KEY"),  # Load from .env
+        openai_api_key=st.secrets["GROQ_API_KEY"],  # Load from .env
         temperature=0.0,
         model_name="mistral-saba-24b",
         base_url="https://api.groq.com/openai/v1"
