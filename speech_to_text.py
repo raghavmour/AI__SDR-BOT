@@ -6,20 +6,20 @@ import os
 
     
 
-def record_audio(pause_threshold=1.0, sample_rate=41000):
+def record_audio(pause_threshold=0.5, sample_rate=41000):
     """
     Records audio using streamlit audio_recorder and returns the path to a temp WAV file.
     """
     audio_bytes = audio_recorder(pause_threshold=pause_threshold, sample_rate=sample_rate)
 
     if audio_bytes:
-        st.audio(audio_bytes, format="audio/wav")
+        #st.audio(audio_bytes, format="audio/wav")
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmpfile:
             tmpfile.write(audio_bytes)
             audio_path = tmpfile.name
         
-        st.success("✅ Audio recorded!")
+        #st.success("✅ Audio recorded!")
         return audio_path
     return None
 
