@@ -1,15 +1,8 @@
 import streamlit as st
 import os
 from dotenv import load_dotenv
-
-# ============ Page Configuration ============
-st.set_page_config(page_title="🎙️ AI SDR Voice Bot", layout="centered")
-st.markdown("<h1 style='text-align: center;'>🎧 AI SDR Voice Conversation</h1>", unsafe_allow_html=True)
-
-# ============ Environment Setup ============
-load_dotenv()
-
-# ============ Imports ============
+# Assuming your_intelligence_module.py has the analyze_user_tone function
+from your_intelligence_module import analyze_user_tone
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableMap, RunnablePassthrough
 from langchain_openai import ChatOpenAI
@@ -18,17 +11,95 @@ from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 from langchain.retrievers.multi_query import MultiQueryRetriever
-
 from speech_to_text import record_audio, transcribe_audio
 from text_to_speech import generate_audio
+
+# ============ Page Configuration ============
+st.set_page_config(page_title="🎙️ AI SDR Voice Bot", layout="centered")
+
+# ============ CSS Styling with Background Image ============
+st.markdown("""
+    <style>
+    body {
+        font-family: 'Segoe UI', sans-serif;
+    }
+    .stApp {
+        background-image: url('https://images.unsplash.com/photo-1516321318423-f06f85e504b3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+    }
+    .main {
+        max-width: 8px;
+        margin: auto;
+        padding: 2rem;
+        background-color: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        min-height: 0vh;
+    }
+    .header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .header img {
+        width: 60px;
+        vertical-align: middle;
+        margin-right: 10px;
+    }
+    .bubble-user {
+        background-color: #DCF8C6;
+        padding: 12px 18px;
+        border-radius: 16px;
+        margin-bottom: 12px;
+        max-width: 70%;
+        box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease-in-out;
+    }
+    .bubble-user:hover {
+        transform: translateY(-2px);
+    }
+    .bubble-bot {
+        background-color: #E3F2FD;
+        padding: 12px 18px;
+        border-radius: 16px;
+        max-width: 70%;
+        margin-left: auto;
+        margin-bottom: 12px;
+        box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease-in-out;
+    }
+    .bubble-bot:hover {
+        transform: translateY(-2px);
+    }
+    .spinner {
+        text-align: center;
+        font-size: 1.2rem;
+        color: #0288D1;
+        margin: 1rem 0;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# ============ Header ============
+st.markdown("""
+    <div class='header'>
+        <img src='https://img.icons8.com/color/48/000000/microphone.png' alt='Mic Icon'/>
+        <h1>🎧 AI SDR Voice Conversation</h1>
+        <p style='color: #555;'>Engage with our AI Sales Development Representative in real-time!</p>
+    </div>
+""", unsafe_allow_html=True)
+
+# Wrap the main app inside a centered container
+st.markdown("<div class='main'>", unsafe_allow_html=True)
+
+# ============ Environment Setup ============
+load_dotenv()
 
 # ============ Chat History ============
 if "history" not in st.session_state:
     st.session_state.history = []
-import openai
-
-# Set the API key directly
-
 
 # ============ RAG Initialization ============
 @st.cache_resource
@@ -70,9 +141,12 @@ def initialize_rag():
 
     # Build RAG chain
     prompt = PromptTemplate.from_template(
-        "You are an AI SDR (Sales Development Representative). Your goal is to qualify leads by asking short, clear, and helpful follow-up questions."
-        "\nUse the following conversation history and current context to respond. Answer in 2-4 sentences.\n\n"
-        "Conversation history:\n{history}\n\nContext:\n{context}\n\nUser just asked:\n{question}\n\nYour short response:"
+        "You are an AI SDR (Sales Development Representative). Your goal is to qualify leads by asking short, clear, and helpful follow-up questions.\n\n"
+        "Use the following conversation history and current context to respond. Answer in 2–3 sentences.\n\n"
+        "Conversation History:\n{history}\n\n"
+        "Context:\n{context}\n\n"
+        "User just asked:\n{question}\n\n"
+        "Your short response in 1-2 sentences:"
     )
 
     chain = RunnableMap({
@@ -85,48 +159,67 @@ def initialize_rag():
 
 retriever, response_chain = initialize_rag()
 
-# ============ Display Chat History ============
-
-
 # ============ Audio Input & RAG Response ============
 audio_file = record_audio()
 
 if audio_file:
-    # st.audio(audio_file, format="audio/wav")  # Optional playback
+        user_text = transcribe_audio(audio_file)
+        os.remove(audio_file)
 
-    user_text = transcribe_audio(audio_file)
-    os.remove(audio_file)
+        st.session_state.history.append((user_text, "..."))
 
-    st.session_state.history.append((user_text, "..."))  # Placeholder for bot response
+        formatted_history = "\n".join(
+            [f"User: {q}\nBot: {a}" for q, a in st.session_state.history]
+        )
 
-    formatted_history = "\n".join(
-        [f"User: {q}\nBot: {a}" for q, a in st.session_state.history[-3:-1]]
-    )
+        udocs = retriever.invoke(user_text)
+        docs = udocs[:3]
+        context = "\n".join([doc.page_content for doc in docs])
 
-    docs = retriever.invoke(user_text)
-    context = "\n".join([doc.page_content for doc in docs])
+        response = response_chain.invoke({
+            "context": context,
+            "question": user_text,
+            "history": formatted_history
+        })
 
-    response = response_chain.invoke({
-        "context": context,
-        "question": user_text,
-        "history": formatted_history
-    })
+        bot_text = response.content.strip()
+        st.session_state.history[-1] = (user_text, bot_text)
 
-    bot_text = response.content.strip()
-    st.session_state.history[-1] = (user_text, bot_text)
+        bot_audio = generate_audio(bot_text)
+        st.audio(bot_audio, format="audio/mpeg", autoplay=True)
+            
+        tone = analyze_user_tone(st.session_state.history)
+        #st.info(f"🧠 Detected user tone: **{tone}**")
+        if tone in ["frustrated", "interested"]:
+            if len([u for u, _ in st.session_state.history if u != "__system__"]) > 3:
+                st.warning("🚨 Escalating this lead to a human SDR.")
+else:
+        if not st.session_state.history:
+            input = "Hello, how can I assist you today?"
+            st.session_state.history.append(("__system__", input))
+            bot_audio = generate_audio(input)
+            st.audio(bot_audio, format="audio/mpeg", autoplay=False)
 
-    bot_audio = generate_audio(bot_text)
-    st.audio(bot_audio, format="audio/mpeg", autoplay=True)
-    for user_text, bot_text in st.session_state.history:
+# ============ Display Chat History ============
+for user_text, bot_text in st.session_state.history:
+    if user_text == "__system__":
         st.markdown(f"""
-        <div style='margin-bottom: 1rem;'>
-            <div style='background-color: #DCF8C6; padding: 10px 15px; border-radius: 12px; margin-bottom: 4px; max-width: 75%;'>
-                <strong>You:</strong> {user_text}
-            </div>
-            <div style='background-color: #F1F0F0; padding: 10px 15px; border-radius: 12px; margin-left: auto; max-width: 75%;'>
-                <strong>Bot:</strong> {bot_text}
+        <div style='margin-bottom: 1.2rem;'>
+            <div class="bubble-bot">
+                <strong>🤖 Bot:</strong> {bot_text}
             </div>
         </div>
         """, unsafe_allow_html=True)
-else:
-    st.warning("⚠️ No audio was recorded. Please try again.")
+    else:
+        st.markdown(f"""
+        <div style='margin-bottom: 1.2rem;'>
+            <div class="bubble-user">
+                <strong>🧑 You:</strong> {user_text}
+            </div>
+            <div class="bubble-bot">
+                <strong>🤖 Bot:</strong> {bot_text}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown("</div>", unsafe_allow_html=True)
