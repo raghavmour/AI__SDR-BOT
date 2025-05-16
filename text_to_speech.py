@@ -1,5 +1,7 @@
 from gtts import gTTS
 import io
+# Load environment variables from .env file
+
 
 def generate_audio(text):
     tts = gTTS(text)
