@@ -1,6 +1,7 @@
 from elevenlabs.client import ElevenLabs
 from dotenv import load_dotenv
 import os
+import streamlit as st
 
 # Load environment variables from .env file
 load_dotenv()
