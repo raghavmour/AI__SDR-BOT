@@ -6,7 +6,7 @@ import os
 load_dotenv()
 
 # Load API key from environment
-ELEVEN_LABS_API_KEY = os.getenv("ELEVEN_LABS_API_KEY")  # Make sure the key name matches your .env file
+ELEVEN_LABS_API_KEY = st.secrets["ELEVEN_LABS_API_KEY"]  # Make sure the key name matches your .env file
 
 # Initialize ElevenLabs client
 client = ElevenLabs(api_key=ELEVEN_LABS_API_KEY)
