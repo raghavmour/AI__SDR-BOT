@@ -13,7 +13,7 @@ from sentence_transformers import SentenceTransformer
 from langchain.retrievers.multi_query import MultiQueryRetriever
 from speech_to_text import record_audio, transcribe_audio
 from text_to_speech import generate_audio
-
+from langchain.chains import LLMChain
 # ============ Page Configuration ============
 st.set_page_config(page_title="🎙️ AI SDR Voice Bot", layout="centered")
 
@@ -155,18 +155,36 @@ def initialize_rag():
         "history": RunnablePassthrough()
     }) | prompt | llm
 
-    return retriever, chain
+    clean_prompt = PromptTemplate(
+    input_variables=["transcript"],
+    template="""
+You are a helpful AI assistant cleaning up voice-to-text input to make it clear, complete, and grammatically correct.
 
-retriever, response_chain = initialize_rag()
+- Fix disfluencies (e.g., "um", "uh")
+- Improve grammar
+- If the sentence is incomplete or vague, complete it in a natural and helpful way
+- Normalize phrasing to standard question or request formats
+
+Original Voice Transcript:
+"{transcript}"
+
+Cleaned & Completed Query:
+"""
+)
+
+    clean_chain = LLMChain(llm=llm, prompt=clean_prompt)
+    return retriever, chain, clean_chain
+
+retriever, response_chain, clean_chain = initialize_rag()
 
 # ============ Audio Input & RAG Response ============
 audio_file = record_audio()
 
 if audio_file:
-        user_text = transcribe_audio(audio_file)
+        user_text1 = transcribe_audio(audio_file)
         os.remove(audio_file)
-
-        st.session_state.history.append((user_text, "..."))
+        st.session_state.history.append((user_text1, "..."))
+        user_text = clean_chain.run(user_text1)
 
         formatted_history = "\n".join(
             [f"User: {q}\nBot: {a}" for q, a in st.session_state.history]
@@ -183,7 +201,7 @@ if audio_file:
         })
 
         bot_text = response.content.strip()
-        st.session_state.history[-1] = (user_text, bot_text)
+        st.session_state.history[-1] = (user_text1, bot_text)
 
         bot_audio = generate_audio(bot_text)
         st.audio(bot_audio, format="audio/mpeg", autoplay=True)
@@ -192,7 +210,7 @@ if audio_file:
         #st.info(f"🧠 Detected user tone: **{tone}**")
         if tone in ["frustrated", "interested"]:
             if len([u for u, _ in st.session_state.history if u != "__system__"]) > 3:
-                st.warning("🚨 Escalating this lead to a human SDR.")
+                st.toast("🚨 Escalating this lead to a human SDR.")
 else:
         if not st.session_state.history:
             input = "Hello, how can I assist you today?"
