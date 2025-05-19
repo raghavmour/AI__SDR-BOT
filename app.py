@@ -213,7 +213,7 @@ if audio_file:
              "transcript" : user_text1
         })
         user_text = user.content.strip()
-        print("user text:" , user_text)
+        #print("user text:" , user_text)
 
         udocs = retriever.invoke(user_text)
         docs = udocs[:3]
@@ -224,7 +224,7 @@ if audio_file:
             "question": user_text,
             "history": formatted_history
         })
-        print("History: ",formatted_history)
+        #print("History: ",formatted_history)
         bot_text = response.content.strip()
         st.session_state.history[-1] = (user_text1, bot_text)
 
