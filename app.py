@@ -130,7 +130,7 @@ def initialize_rag():
     llm = ChatOpenAI(
         openai_api_key=st.secrets["GROQ_API_KEY"],  # Load from .env
         temperature=0.0,
-        model_name="meta-llama/llama-4-maverick-17b-128e-instruct",
+        model_name="gemma2-9b-it",
         base_url="https://api.groq.com/openai/v1"
     )
 
@@ -141,12 +141,24 @@ def initialize_rag():
 
     # Build RAG chain
     prompt = PromptTemplate.from_template(
-        "You are an AI SDR (Sales Development Representative). Your goal is to qualify leads by asking short, clear, and helpful follow-up questions.\n\n"
-        "Use the following conversation history and current context to respond. Answer in 2–3 sentences.\n\n"
-        "Conversation History:\n{history}\n\n"
-        "Context:\n{context}\n\n"
-        "User just asked:\n{question}\n\n"
-        "Your short response in 1-2 sentences:"
+         """
+        You are an AI SDR (Sales Development Representative). Your goal is to qualify leads by asking short, clear, and helpful follow-up questions.
+
+- Respond in exactly 1-2 sentences. Do not exceed 2 sentences.
+- Keep your response concise, direct, and relevant to the user's query.
+- Focus on qualifying the lead while maintaining a helpful tone.
+
+Conversation History:
+{history}
+
+Context:
+{context}
+
+User just asked:
+{question}
+
+Your short response (strictly 1-2 sentences only):
+        """
     )
 
     chain = RunnableMap({
@@ -155,24 +167,33 @@ def initialize_rag():
         "history": RunnablePassthrough()
     }) | prompt | llm
 
-    clean_prompt = PromptTemplate(
-    input_variables=["transcript"],
-    template="""
-You are a helpful AI assistant cleaning up voice-to-text input to make it clear, complete, and grammatically correct.
+    clean_prompt = PromptTemplate.from_template(
+"""
+You are a helpful AI assistant cleaning up voice-to-text input to make it clear, complete, and grammatically correct. 
+Additionally, you are aware of the ongoing conversation and can use it to provide more contextually relevant and coherent responses.
 
+- Consider the context from the conversation history to better understand the intent of the query
 - Fix disfluencies (e.g., "um", "uh")
 - Improve grammar
-- If the sentence is incomplete or vague, complete it in a natural and helpful way
+- If the sentence is incomplete or vague, complete it in a natural and helpful way, considering the context
 - Normalize phrasing to standard question or request formats
 
-Original Voice Transcript:
+Do not provide explanations or justifications for your changes. Only return the cleaned and contextual query.
+
+Conversation History:
+{history}
+
+Current Voice Transcript:
 "{transcript}"
 
-Cleaned & Completed Query:
+Cleaned & Contextual Query:
 """
 )
 
-    clean_chain = LLMChain(llm=llm, prompt=clean_prompt)
+    clean_chain = RunnableMap({
+        "history": RunnablePassthrough(),
+        "transcript": RunnablePassthrough()
+    }) | clean_prompt | llm
     return retriever, chain, clean_chain
 
 retriever, response_chain, clean_chain = initialize_rag()
@@ -184,11 +205,15 @@ if audio_file:
         user_text1 = transcribe_audio(audio_file)
         os.remove(audio_file)
         st.session_state.history.append((user_text1, "..."))
-        user_text = clean_chain.run(user_text1)
-
         formatted_history = "\n".join(
             [f"User: {q}\nBot: {a}" for q, a in st.session_state.history]
         )
+        user = clean_chain.invoke({
+             "history": formatted_history,
+             "transcript" : user_text1
+        })
+        user_text = user.content.strip()
+        print("user text:" , user_text)
 
         udocs = retriever.invoke(user_text)
         docs = udocs[:3]
@@ -199,7 +224,7 @@ if audio_file:
             "question": user_text,
             "history": formatted_history
         })
-
+        print("History: ",formatted_history)
         bot_text = response.content.strip()
         st.session_state.history[-1] = (user_text1, bot_text)
 
