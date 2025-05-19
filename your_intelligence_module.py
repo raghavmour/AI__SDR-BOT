@@ -8,7 +8,7 @@ def analyze_user_tone(history):
     llm = ChatOpenAI(
         openai_api_key=st.secrets["GROQ_API_KEY"],
         temperature=0.0,
-        model_name="meta-llama/llama-4-maverick-17b-128e-instruct",
+        model_name="gemma2-9b-it",
         base_url="https://api.groq.com/openai/v1"
     )
 
